@@ -1,0 +1,55 @@
+# Secrets & local config — never commit
+.env
+.env.*
+*.local
+secrets/
+.secrets/
+*.key
+*.pem
+id_*
+*_rsa
+*_ed25519
+*.token
+
+# Model weights / caches (huge, machine-specific)
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+hf-cache/
+.cache/
+vllm-cache/
+triton-cache/
+tilelang/
+deepgemm-cache/
+
+# H3 / ComfyUI render output & runtime
+output/
+outputs/
+*.mp4
+*.wav
+*.png
+*.webp
+temp/
+ComfyUI/temp/
+ComfyUI/user/
+
+# Logs & runtime artifacts
+*.log
+logs/
+*.pid
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

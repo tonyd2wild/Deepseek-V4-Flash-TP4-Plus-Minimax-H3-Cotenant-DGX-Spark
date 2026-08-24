@@ -1,0 +1,12 @@
+Unofficial community recipe for running a full 671B-class LLM AND a video-diffusion model on
+the SAME four DGX Spark (GB10) boxes at once: DeepSeek-V4-Flash served across all four Sparks as
+one TP=4 vLLM group, CO-TENANT with MiniMax-H3 (image/video diffusion on ComfyUI) as a
+co-resident render farm. TP=4 is what makes it fit — each node holds only ~38 GB (1/4 the model)
+vs ~80 GB at TP=2, freeing ~40-50 GB/node for H3. The co-tenancy budget is KEYS' work: the gmu
+0.76 / 888K context drop + H3 --reserve-vram 48 + an earlyoom/choom victim net so an H3 render is
+always the OOM sacrifice and DeepSeek never dies. Two modes: int8 "draft" H3 co-tenant with DS4
+live, and bf16 "finals" farm-mode (pause DS4 ~20-30 min, fan across the freed Sparks ~3x).
+Includes the memory math, the strict DS4-first load order, the GB10 unified-memory gotchas
+(drop_caches, the OOM victim net, the NFS/VAE symlink trap, --disable-pinned-memory, thermal),
+and scrubbed launch scripts. Sibling of the DS4 TP=4 recipe:
+github.com/tonyd2wild/deepseek-v4-flash-tp4-4x-dgx-spark
