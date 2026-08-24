@@ -1,4 +1,4 @@
-# DeepSeek-V4-Flash (TP=4, four DGX Sparks) **co-tenant with** MiniMax-H3 image/video
+# DeepSeek-V4-Flash (TP=4, Four DGX Sparks) **Co-Tenant With** MiniMax-H3 Image/Video
 
 > **Unofficial community recipe.** Not affiliated with, endorsed by, or supported by
 > DeepSeek, NVIDIA, MiniMax, the vLLM project, or ComfyUI. All names and trademarks belong to
@@ -220,21 +220,51 @@ Full list with symptoms/fixes in [`GB10-HYGIENE.md`](GB10-HYGIENE.md). The short
 
 ---
 
-## Measured cost of a live H3 render on DS4 throughput
+## Measured Cost Of Live H3 Renders On DS4 Throughput
 
-Measured at **TP=2 co-tenancy** (our rig, their bench harness) — carry as *relative*, and
-re-measure at TP=4 on your mix (the TP=4 headroom is larger, so expect this to be gentler, but
-we have **not** separately benchmarked the TP=4 co-tenant render curve yet):
+### TP=4 render-scaling curve (measured 2026-08-24, our rig)
+
+One take, on the full TP=4 stack (DSpark spec k=5 + drafter patch, `--max-num-seqs 6`,
+909312 max-model-len). Clean lane restarts first, then one 12s 960x544 H3 render
+(steps 20) added per step, one per Spark. Probe = a count-to-300 prompt, 600 completion
+tokens per measurement, single stream:
+
+| concurrent H3 renders | DS4 decode | vs idle |
+|---|---|---|
+| 0 (idle) | **128.5 t/s** | — |
+| 1 | **84.9 t/s** | −34% |
+| 2 | **46.4 t/s** | −64% |
+| 3 | **37.7 t/s** | −71% |
+| 4 (every node rendering) | **32.9 t/s** | −74% |
+
+What the curve teaches:
+
+- **Each render costs roughly a third of whatever speed is left** — the penalty compounds,
+  it is not linear. Every decode step is an all-reduce across all TP nodes, so the slowest
+  node paces the group; each busy node raises the odds the group is waiting on somebody.
+- **It is the FRACTION of nodes busy that matters, not the TP degree.** Rendering on 2-of-2
+  nodes at TP=2 craters exactly like 4-of-4 at TP=4. Keep at least one node render-free if
+  you want DS4 to breathe.
+- **Speculative decoding softens the co-tenant penalty.** The same sweep with spec OFF
+  measured 34.1 → 5.0 t/s (−85%): the DSpark drafter accepts multiple tokens per target
+  step, so fewer all-reduce-gated steps per token = less exposure to render contention.
+  Under FULL 4-render load the specced stack (32.9) still runs as fast as the unspecced
+  model does completely idle (34.1).
+- **Starvation is mutual** — with DS4 serving under a 4-render wave, the renders slow to a
+  crawl too (a 12s clip can stretch from ~10 min toward an hour).
+- Practical rule: **1 co-tenant render is cheap, 2 is the pain line, 3+ is farm-mode
+  territory** (pause DS4, blast the renders, bring it back).
+
+### TP=2 reference (earlier measurement, their bench harness)
 
 | DS4 concurrency | DS4 idle | +1 H3 render | +2 H3 renders |
 |---|---|---|---|
 | C1 | 88.87 t/s | **40.98** | **28.48** |
 | C6 | 285.95 t/s | 130.77 | 100.79 |
 
-**A live H3 render roughly halves DS4 throughput; an *idle* H3 lane costs only ~6–15%.** Worth
-knowing before you schedule video against a live agent fleet — this is the argument for the
-draft/finals split: iterate cheap in draft, and take the big quality pass in farm-mode when you
-can afford to pause DS4.
+An *idle* H3 lane costs only ~6–15%. This is the argument for the draft/finals split:
+iterate cheap in draft, and take the big quality pass in farm-mode when you can afford to
+pause DS4.
 
 ---
 
